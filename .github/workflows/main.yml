@@ -20,52 +20,52 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # 2. 删除 OpenWrt 仓库中的 .github 文件夹
-      - name: Remove .github from OpenWrt Repo
-        run: |
-          cd openwrt
-          rm -rf .github
-
-      # 3. 克隆目标仓库（你的仓库），备份需要保留的文件
-      - name: Clone Your Repository and Backup Files
+      # 2. 克隆目标仓库（你的仓库）
+      - name: Clone Your Repository
         env:
           PAT: ${{ secrets.PAT_TOKEN }}
         run: |
           git clone https://x-access-token:${PAT}@github.com/wixxm/openwrt-24.10.git target_repo
-          cd target_repo
-          # 确保 .github 文件夹存在
-          if [ -d ".github" ]; then
-            mkdir -p ../github_backup
-            mv .github ../github_backup
-          fi
-          # 备份特定文件
-          mkdir -p ../file_backup
-          cp ./config/Config-images.in ../file_backup/
-          cp ./package/base-files/files/etc/banner ../file_backup/
-          cp ./package/base-files/files/bin/config_generate ../file_backup/
-          cp ./include/version.mk ../file_backup/
 
-      # 4. 将 OpenWrt 仓库的更改同步到目标仓库
-      - name: Sync Changes to Your Repository
+      # 3. 备份 .github 文件夹和需要保留的文件
+      - name: Backup Existing Files
         run: |
-          rsync -av --exclude='.git' openwrt/ target_repo/
-          # 恢复原有的 .github 文件夹
-          if [ -d "../github_backup" ]; then
-            mv ../github_backup target_repo/.github
+          mkdir -p backup
+          # 备份 .github 文件夹
+          if [ -d "target_repo/.github" ]; then
+            mv target_repo/.github backup/github_backup
           fi
-          # 恢复需要保留的文件
-          cp ../file_backup/Config-images.in target_repo/config/Config-images.in
-          cp ../file_backup/banner target_repo/package/base-files/files/etc/banner
-          cp ../file_backup/config_generate target_repo/package/base-files/files/bin/config_generate
-          cp ../file_backup/version.mk target_repo/include/version.mk
-          cd target_repo
-          git add .
-          git commit -m "Sync OpenWrt 24.10 branch with specific files and workflows retained" || echo "No changes to commit"
+          # 备份需要保留的文件
+          mkdir -p backup/files
+          cp -r target_repo/config/Config-images.in backup/files/
+          cp -r target_repo/package/base-files/files/etc/banner backup/files/
+          cp -r target_repo/package/base-files/files/bin/config_generate backup/files/
+          cp -r target_repo/include/version.mk backup/files/
 
-      # 5. 推送到目标仓库的 main 分支
-      - name: Push to Your Main Branch
+      # 4. 将 OpenWrt 仓库的内容同步到目标仓库
+      - name: Sync OpenWrt Changes
+        run: |
+          rsync -av --delete --exclude='.git' --exclude='.github' openwrt/ target_repo/
+
+      # 5. 恢复备份的文件和文件夹
+      - name: Restore Backup Files
+        run: |
+          # 恢复 .github 文件夹
+          if [ -d "backup/github_backup" ]; then
+            mv backup/github_backup target_repo/.github
+          fi
+          # 恢复其他文件
+          cp -r backup/files/Config-images.in target_repo/config/
+          cp -r backup/files/banner target_repo/package/base-files/files/etc/
+          cp -r backup/files/config_generate target_repo/package/base-files/files/bin/
+          cp -r backup/files/version.mk target_repo/include/
+
+      # 6. 提交更改
+      - name: Commit and Push Changes
         env:
           PAT: ${{ secrets.PAT_TOKEN }}
         run: |
           cd target_repo
+          git add .
+          git commit -m "Sync OpenWrt 24.10 branch with specific files retained" || echo "No changes to commit"
           git push origin HEAD:main --force
