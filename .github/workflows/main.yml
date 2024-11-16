@@ -33,10 +33,13 @@ jobs:
         run: |
           git clone https://x-access-token:${PAT}@github.com/wixxm/openwrt-24.10.git target_repo
           cd target_repo
-          mkdir -p ../file_backup
-          # 备份 .github 文件夹
-          mv .github ../github_backup
+          # 确保 .github 文件夹存在
+          if [ -d ".github" ]; then
+            mkdir -p ../github_backup
+            mv .github ../github_backup
+          fi
           # 备份特定文件
+          mkdir -p ../file_backup
           cp ./config/Config-images.in ../file_backup/
           cp ./package/base-files/files/etc/banner ../file_backup/
           cp ./package/base-files/files/bin/config_generate ../file_backup/
@@ -46,7 +49,10 @@ jobs:
       - name: Sync Changes to Your Repository
         run: |
           rsync -av --exclude='.git' openwrt/ target_repo/
-          mv ../github_backup target_repo/.github  # 恢复原有的 .github 文件夹
+          # 恢复原有的 .github 文件夹
+          if [ -d "../github_backup" ]; then
+            mv ../github_backup target_repo/.github
+          fi
           # 恢复需要保留的文件
           cp ../file_backup/Config-images.in target_repo/config/Config-images.in
           cp ../file_backup/banner target_repo/package/base-files/files/etc/banner
