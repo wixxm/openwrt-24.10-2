@@ -1,0 +1,53 @@
+name: Sync OpenWrt to Main
+
+permissions:
+  contents: write  # 允许写入内容
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # 每天凌晨 3 点运行
+  workflow_dispatch:  # 支持手动触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 克隆 OpenWrt 官方仓库的 24.10 分支
+      - name: Clone OpenWrt Repository
+        run: |
+          git clone --branch openwrt-24.10 https://github.com/openwrt/openwrt.git openwrt
+          cd openwrt
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # 2. 删除 OpenWrt 仓库中的 .github 文件夹
+      - name: Remove .github from OpenWrt Repo
+        run: |
+          cd openwrt
+          rm -rf .github
+
+      # 3. 克隆目标仓库（你的仓库），保留 .github 文件夹
+      - name: Clone Your Repository
+        env:
+          PAT: ${{ secrets.PAT_TOKEN }}
+        run: |
+          git clone https://x-access-token:${PAT}@github.com/wixxm/openwrt-24.10.git target_repo
+          cd target_repo
+          mv .github ../github_backup # 备份 .github 文件夹
+
+      # 4. 将 OpenWrt 仓库的更改同步到目标仓库
+      - name: Sync Changes to Your Repository
+        run: |
+          rsync -av --exclude='.git' openwrt/ target_repo/
+          mv github_backup target_repo/.github # 恢复原有的 .github 文件夹
+          cd target_repo
+          git add .
+          git commit -m "Sync OpenWrt 24.10 branch (excluding OpenWrt .github folder)" || echo "No changes to commit"
+
+      # 5. 推送到目标仓库的 main 分支
+      - name: Push to Your Main Branch
+        env:
+          PAT: ${{ secrets.PAT_TOKEN }}
+        run: |
+          cd target_repo
+          git push origin HEAD:main --force
