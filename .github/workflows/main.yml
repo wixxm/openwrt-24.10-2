@@ -4,8 +4,11 @@ permissions:
   contents: write  # 允许写入内容
 
 on:
+  push:
+    paths:
+      - '.github/workflows/main.yml'
   schedule:
-    - cron: '0 3 * * *'  # 每天凌晨 3 点运行
+    - cron: 0 */12 * * *  # 每12小时运行一次
   workflow_dispatch:  # 支持手动触发
 
 jobs:
